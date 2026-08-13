@@ -1,0 +1,8 @@
+node_modules/
+data/
+bin/
+.build/
+tmp/
+*.log
+tmp-*.txt
+-

@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>赛场 · OI 局域网测评</title>
+  <meta name="description" content="局域网 OI 比赛发布、提交、LemonLime 测评与排名">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="#"><span class="brand-mark">OI</span><span>赛场</span></a>
+    <nav aria-label="页面切换">
+      <button class="nav-button active" data-view="student">学生端</button>
+      <button class="nav-button" data-view="admin">管理员</button>
+    </nav>
+    <span id="clock" class="clock" aria-live="polite"></span>
+  </header>
+
+  <main>
+    <section id="student-view" class="view active">
+      <div class="hero">
+        <p class="eyebrow">LOCAL OI CONTEST</p>
+        <h1>选比赛，下载题目，<br><span>按格式交卷。</span></h1>
+        <p>服务器时间决定开赛与截止；提交文件夹通过结构检查后，自动进入 LemonLime 测评队列。</p>
+        <div id="judge-health" class="health"></div>
+      </div>
+      <div class="section-heading"><div><p class="eyebrow">CONTESTS</p><h2>当前比赛</h2></div><button id="refresh-contests" class="ghost">刷新</button></div>
+      <div id="contest-list" class="contest-grid" aria-live="polite"></div>
+    </section>
+
+    <section id="admin-view" class="view">
+      <div id="admin-login" class="login-card">
+        <p class="eyebrow">ADMIN</p><h1>管理员控制台</h1>
+        <p>令牌首次启动时生成，显示在服务器终端并保存在 data/admin-token.txt。</p>
+        <form id="admin-login-form"><label>管理员令牌<input id="admin-token" type="password" autocomplete="current-password" required></label><button>进入控制台</button></form>
+      </div>
+      <div id="admin-dashboard" hidden>
+        <div class="section-heading"><div><p class="eyebrow">CONTROL ROOM</p><h1>比赛控制台</h1></div><button id="admin-logout" class="ghost">退出</button></div>
+        <form id="create-contest" class="panel form-grid">
+          <h2>新建比赛</h2>
+          <label>比赛名称<input name="title" required placeholder="2026 暑期 OI 模拟赛 #1"></label>
+          <label>比赛口令（可空）<input name="accessCode" placeholder="全班统一口令"></label>
+          <label>开始时间<input name="startAt" type="datetime-local" required></label>
+          <label>截止时间<input name="endAt" type="datetime-local" required></label>
+          <label class="full">比赛注意事项<textarea name="description" rows="22">【一、考场纪律】
+1. 本场采用断网监考。考生电脑必须断开互联网，只连接监考指定的赛场局域网访问本系统。
+2. 禁止使用手机、平板、智能手表、移动存储设备、聊天工具、搜索引擎、在线代码库及 AI 工具；监考允许的离线资料除外。
+3. 必须独立完成比赛，不得交谈、传递文件、查看他人屏幕或代码。仅可向监考人员报告设备及系统故障。
+4. 听从监考人员的开赛、暂停和结束指令。比赛结束后立即停止编写，以服务器时间为准。
+
+【二、编译与程序要求】
+5. 本场只接收 C++ 源码，统一按照 C++14 编译并默认开启 -O2 优化；不要使用仅由更新标准支持的语法。
+6. 程序不得依赖本机绝对路径、第三方动态库或未随题目提供的文件；提交前删除调试输出和无关代码。
+7. 输入输出方式严格以题面为准：标准输入输出使用 cin/cout；只有题面明确要求文件读写时，才使用对应的 freopen 文件名。
+8. 文件读写题必须逐字核对 .in/.out 文件名及大小写；不要把本地调试用的重定向错误地留在标准输入输出题中。
+
+【三、提交文件夹格式】
+9. 在电脑上建立一个以本人随机考号命名的总文件夹，提交时直接选择这个文件夹，无需压缩。
+10. 每道题的目录、源码文件名和大小写必须与比赛页面题目清单完全一致；不得漏交、错拼或放错位置。
+11. 文件夹中只保留要求提交的源代码，不要放入 exe、对象文件、测试数据、IDE 工程目录或其他无关文件。
+
+【四、答题与提交检查】
+12. 开赛后先浏览全部题目，根据难度和分值安排时间；遇到长时间无法解决的题目应先转做其他题。
+13. 编写过程中经常保存，并对样例、边界数据和特殊情况进行本地编译测试；不要只检查能否通过样例。
+14. 建议至少预留最后 15 分钟，逐题核对源码内容、文件名、目录结构、输入输出方式和最外层文件夹名称。
+
+本须知根据 CSP-J/S 常见复赛注意事项重新整理；如与本场题面或监考人员现场通知冲突，以后者为准。</textarea></label>
+          <label class="full">导入学生姓名
+            <input id="roster-file" type="file" accept=".txt,.csv,text/plain,text/csv">
+            <textarea id="roster-names" name="rosterNames" rows="6" placeholder="每行一个姓名，例如：&#10;张三&#10;李四&#10;王五"></textarea>
+            <small>支持 TXT/CSV；CSV 读取第一列。系统将随机生成考号和个人提交码。</small>
+          </label>
+          <label class="check"><input name="rankingPublic" type="checkbox" checked>公开排名</label>
+          <button class="primary">创建比赛</button>
+        </form>
+        <div id="registration-result" class="panel" hidden></div>
+        <div id="admin-contests" class="admin-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <dialog id="package-viewer">
+    <button id="package-viewer-close" class="dialog-close" aria-label="关闭">×</button>
+    <p class="eyebrow">PACKAGE VIEWER</p>
+    <h2 id="package-viewer-title">在线查看</h2>
+    <div id="package-viewer-content"></div>
+  </dialog>
+  <dialog id="proctor-viewer" class="proctor-viewer">
+    <button id="proctor-viewer-close" class="dialog-close" aria-label="关闭">×</button>
+    <h2 id="proctor-viewer-title">屏幕监考</h2>
+    <div class="proctor-viewer-screen"><img id="proctor-viewer-image" alt="学生屏幕放大画面"></div>
+  </dialog>
+  <dialog id="judge-detail-viewer" class="judge-detail-viewer">
+    <button id="judge-detail-close" class="dialog-close" aria-label="关闭">×</button>
+    <h2 id="judge-detail-title">测评详情</h2>
+    <div id="judge-detail-content"></div>
+  </dialog>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>

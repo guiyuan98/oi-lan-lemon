@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>比赛 · OI 赛场</title>
+  <meta name="description" content="OI 比赛题目下载与提交页面">
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/"><span class="brand-mark">OI</span><span>赛场</span></a>
+    <a class="back-link ghost" href="/">← 返回比赛列表</a>
+    <span id="clock" class="clock" aria-live="polite"></span>
+  </header>
+  <main class="contest-main">
+    <article id="contest-page" class="contest-page" aria-live="polite"><p class="empty">正在加载比赛……</p></article>
+  </main>
+  <div id="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="/contest.js"></script>
+</body>
+</html>
