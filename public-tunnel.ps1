@@ -21,6 +21,12 @@ function Get-TunnelProcess {
   return $null
 }
 
+function Test-PublicUrl([string]$url) {
+  if (!$url) { return $false }
+  try { return (Invoke-WebRequest -UseBasicParsing "$url/api/health" -TimeoutSec 6).StatusCode -eq 200 }
+  catch { return $false }
+}
+
 if ($Action -eq 'stop') {
   $process = Get-TunnelProcess
   if ($process) { Stop-Process -Id $process.ProcessId -Force }
@@ -37,6 +43,15 @@ $env:NO_BROWSER = '1'
 if ($LASTEXITCODE) { throw 'Server failed to start.' }
 
 $running = Get-TunnelProcess
+if ($running) {
+  $savedUrl = if (Test-Path $urlFile) { (Get-Content -Raw $urlFile).Trim() } else { '' }
+  if (!(Test-PublicUrl $savedUrl)) {
+    Write-Host 'The old public tunnel is offline. Creating a new URL...' -ForegroundColor Yellow
+    Stop-Process -Id $running.ProcessId -Force -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $pidFile, $urlFile -Force -ErrorAction SilentlyContinue
+    $running = $null
+  }
+}
 if (!$running) {
   Remove-Item -LiteralPath $outLog, $errLog -Force -ErrorAction SilentlyContinue
   $running = Start-Process -FilePath $exe -ArgumentList @('tunnel', '--no-autoupdate', '--protocol', 'http2', '--url', 'http://127.0.0.1:3000') -WindowStyle Hidden -RedirectStandardOutput $outLog -RedirectStandardError $errLog -PassThru
@@ -74,8 +89,7 @@ Write-Host "Saved to: $desktopUrlFile"
 
 $publicReady = $false
 for ($i = 0; $i -lt 10 -and !$publicReady; $i++) {
-  try { $publicReady = (Invoke-WebRequest -UseBasicParsing "$url/api/health" -TimeoutSec 4).StatusCode -eq 200 }
-  catch { $publicReady = $false }
+  $publicReady = Test-PublicUrl $url
   if (!$publicReady) { Start-Sleep -Seconds 1 }
 }
 if ($publicReady) { Start-Process $url }

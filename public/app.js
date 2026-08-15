@@ -74,6 +74,12 @@ async function adminOverview() {
           return `<tr><td>${escapeHtml(student.studentName)}<small>${escapeHtml(student.studentId)}</small></td><td>${student.submissionId ? `<b>已提交 v${student.version}</b><small>${statusLabels[student.status] || student.status}</small>` : '<span class="not-submitted">未提交</span>'}</td>${contest.tasks.map(task => { const result = student.taskScores.find(item => item.title === task.title); return `<td>${result ? `<button class="task-result-button" data-submission-id="${student.submissionId}" data-task="${escapeHtml(task.title)}">${result.score}${result.formatError ? '<small>格式错误</small>' : ''}</button>` : '—'}</td>`; }).join('')}<td><strong>${student.score ?? '—'}</strong></td><td><div class="row-actions">${submissionActions}<button class="delete-student danger-button" data-contest-id="${contest.id}" data-student-id="${escapeHtml(student.studentId)}" data-name="${escapeHtml(student.studentName)}" data-submitted="${student.submissionId ? '1' : '0'}">删除学生</button></div></td></tr>`;
         }).join('')}</tbody></table>` : '<p class="empty">还没有参赛学生。</p>'}
       </div>
+      <div class="ai-review-panel" data-id="${contest.id}" data-title="${escapeHtml(contest.title)}">
+        <div class="student-manager-head"><div><h3>DeepSeek 单人赛后复盘</h3><small>使用 1M 上下文的 deepseek-v4-pro，每次只分析一名学生并生成独立 Markdown 文档。API Key 只保留在当前页面，不会保存。</small></div></div>
+        <div class="ai-review-key"><input class="ai-review-api-key" type="password" autocomplete="off" placeholder="输入 DeepSeek API Key"></div>
+        <p class="ai-review-privacy">生成时会把所选学生的题目资料、源代码、分数和测试点结果发送给 DeepSeek；姓名不会发送。请先确认符合学校的数据使用要求。</p>
+        <div class="ai-review-students">${contest.participants.filter(student => student.submissionId).length ? contest.participants.filter(student => student.submissionId).map(student => `<div class="ai-review-student" data-student-id="${escapeHtml(student.studentId)}"><span><b>${escapeHtml(student.studentName)}</b><small>${escapeHtml(student.studentId)}</small></span><span class="ai-review-status empty">正在读取状态…</span><button class="generate-student-ai-review primary" data-student-name="${escapeHtml(student.studentName)}">生成复盘</button><button class="download-student-ai-review ghost" data-student-name="${escapeHtml(student.studentName)}" hidden>下载</button></div>`).join('') : '<p class="empty">还没有可分析的学生提交。</p>'}</div>
+      </div>
       <div class="proctor-panel">
         <div class="student-manager-head"><div><h3>屏幕监考</h3><small>仅保留客户端最新缩略图；约 12 秒未收到心跳即离线。</small></div><button class="refresh-proctor ghost">刷新状态</button></div>
         ${contest.participants.length ? `<div class="proctor-grid">${contest.participants.map(student => `<article class="proctor-card ${student.proctor.online ? 'online' : 'offline'} ${student.proctor.violation ? 'warning' : ''}" data-contest-id="${contest.id}" data-student-id="${escapeHtml(student.studentId)}">
@@ -84,7 +90,38 @@ async function adminOverview() {
       </div>
     </article>`).join('') : '<p class="empty">先创建第一场比赛。</p>';
   bindAdminActions();
-  await loadProctorScreens();
+  await Promise.all([loadProctorScreens(), loadAiReviewStatuses()]);
+}
+
+function renderAiReviewStatuses(panel, payload) {
+  let anyRunning = false;
+  for (const status of payload.students || []) {
+    const row = [...panel.querySelectorAll('.ai-review-student')].find(item => item.dataset.studentId === status.studentId);
+    if (!row) continue;
+    const statusBox = row.querySelector('.ai-review-status');
+    const running = ['queued', 'running'].includes(status.status);
+    anyRunning ||= running;
+    row.querySelector('.generate-student-ai-review').disabled = running;
+    row.querySelector('.download-student-ai-review').hidden = !status.downloadReady;
+    statusBox.className = `ai-review-status ${status.status === 'failed' ? 'bad' : ''}`;
+    statusBox.textContent = running ? '正在生成…'
+      : status.status === 'ready' ? '已生成'
+        : status.status === 'failed' ? `失败：${status.error}` : '尚未生成';
+  }
+  return anyRunning;
+}
+
+async function loadAiReviewStatuses() {
+  await Promise.all([...document.querySelectorAll('.ai-review-panel')].map(panel => pollAiReview(panel.dataset.id)));
+}
+
+async function pollAiReview(contestId) {
+  const panel = document.querySelector(`.ai-review-panel[data-id="${contestId}"]`);
+  if (!panel) return;
+  try {
+    const status = await api(`/api/admin/contests/${contestId}/ai-review/status`, {}, true);
+    if (renderAiReviewStatuses(panel, status)) setTimeout(() => pollAiReview(contestId), 3000);
+  } catch (error) { toast(error.message, true); }
 }
 
 async function loadProctorScreens() {
@@ -129,6 +166,30 @@ async function showJudgeDetail(button) {
 }
 
 function bindAdminActions() {
+  document.querySelectorAll('.generate-student-ai-review').forEach(button => button.addEventListener('click', async () => {
+    const row = button.closest('.ai-review-student');
+    const panel = button.closest('.ai-review-panel');
+    const apiKey = panel.querySelector('.ai-review-api-key').value.trim();
+    if (!apiKey) return toast('请先输入 DeepSeek API Key', true);
+    if (!confirm(`将 ${button.dataset.studentName} 的题目、源代码和评测结果发送给 DeepSeek，并按调用量产生费用。确定继续吗？`)) return;
+    button.disabled = true;
+    try {
+      await api(`/api/admin/contests/${panel.dataset.id}/ai-review/${encodeURIComponent(row.dataset.studentId)}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ apiKey }) }, true);
+      toast(`${button.dataset.studentName}的复盘任务已开始`); pollAiReview(panel.dataset.id);
+    } catch (error) { button.disabled = false; toast(error.message, true); }
+  }));
+  document.querySelectorAll('.download-student-ai-review').forEach(button => button.addEventListener('click', async () => {
+    const row = button.closest('.ai-review-student');
+    const panel = button.closest('.ai-review-panel');
+    try {
+      const response = await fetch(`/api/admin/contests/${panel.dataset.id}/ai-review/${encodeURIComponent(row.dataset.studentId)}/download`, { headers: { 'x-admin-token': adminToken } });
+      if (!response.ok) throw new Error((await response.json()).error || '下载失败');
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(await response.blob());
+      link.download = `${panel.dataset.title}-${button.dataset.studentName}-${row.dataset.studentId}-赛后复盘.md`;
+      link.click(); URL.revokeObjectURL(link.href);
+    } catch (error) { toast(error.message, true); }
+  }));
   document.querySelectorAll('.task-result-button').forEach(button => button.addEventListener('click', () => showJudgeDetail(button)));
   document.querySelectorAll('.rename-contest').forEach(button => button.addEventListener('click', async () => {
     const title = prompt('请输入新的比赛名称（最长 80 字）：', button.dataset.title);

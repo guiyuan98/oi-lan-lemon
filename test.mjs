@@ -52,15 +52,19 @@ test('submission format is checked independently for every task', async () => {
     zip.writeZip(target);
     return target;
   };
-  const partial = await validateSubmission(makeZip('partial.zip', ['OI123456/sum/sum.cpp']), 'OI123456', tasks, path.join(testData, 'partial'));
+  const partial = await validateSubmission(makeZip('partial.zip', ['OI123456张三/sum/sum.cpp']), 'OI123456', '张三', tasks, path.join(testData, 'partial'));
   assert.deepEqual(partial.tasks.map(task => task.valid), [true, false]);
   assert.match(partial.report, /找到 1\/2 道/);
-  const wrongCase = await validateSubmission(makeZip('case.zip', ['OI123456/SUM/SUM.CPP']), 'OI123456', tasks, path.join(testData, 'case'));
+  const wrongCase = await validateSubmission(makeZip('case.zip', ['OI123456张三/SUM/SUM.CPP']), 'OI123456', '张三', tasks, path.join(testData, 'case'));
   assert.deepEqual(wrongCase.tasks.map(task => task.valid), [false, false]);
-  const extra = await validateSubmission(makeZip('extra.zip', ['OI123456/sum/sum.cpp', 'OI123456/readme.txt']), 'OI123456', tasks, path.join(testData, 'extra'));
+  const extra = await validateSubmission(makeZip('extra.zip', ['OI123456张三/sum/sum.cpp', 'OI123456张三/readme.txt']), 'OI123456', '张三', tasks, path.join(testData, 'extra'));
   assert.equal(extra.tasks[0].valid, true);
-  const systemMetadata = await validateSubmission(makeZip('metadata.zip', ['OI123456/sum/sum.cpp', '__MACOSX/._sum.cpp']), 'OI123456', tasks, path.join(testData, 'metadata'));
+  const systemMetadata = await validateSubmission(makeZip('metadata.zip', ['OI123456张三/sum/sum.cpp', '__MACOSX/._sum.cpp']), 'OI123456', '张三', tasks, path.join(testData, 'metadata'));
   assert.equal(systemMetadata.tasks[0].valid, true);
+  await assert.rejects(
+    validateSubmission(makeZip('old-plus.zip', ['OI123456+张三/sum/sum.cpp']), 'OI123456', '张三', tasks, path.join(testData, 'old-plus')),
+    error => error.code === 'SUBMISSION_FORMAT' && /OI123456张三/.test(error.message)
+  );
 });
 
 test('async form handlers keep a stable form reference', () => {
@@ -82,6 +86,11 @@ test('async form handlers keep a stable form reference', () => {
   assert.match(source, /add-student/);
   assert.match(source, /delete-student/);
   assert.match(contestSource, /package-download-form/);
+  assert.match(contestSource, /self-test-download-form/);
+  assert.match(contestSource, /self-test-download/);
+  assert.match(contestSource, /下载本人提交文件夹/);
+  assert.match(contestSource, /practice-submissions/);
+  assert.match(contestSource, /自测提交不会修改正式成绩/);
   assert.match(source, /download-admin-package/);
   assert.match(source, /inspect-admin-package/);
   assert.match(source, /preview-ticket/);
@@ -91,10 +100,14 @@ test('async form handlers keep a stable form reference', () => {
   assert.match(source, /openProctorScreen/);
   assert.match(source, /客户端已离线/);
   assert.match(source, /showJudgeDetail/);
+  assert.match(source, /DeepSeek 单人赛后复盘/);
+  assert.match(source, /ai-review\/status/);
+  assert.match(source, /generate-student-ai-review/);
   assert.match(source, /adminContests\.flatMap/);
   assert.match(page, /id="judge-detail-viewer"/);
   assert.match(source, /#admin-dashboard input,#admin-dashboard textarea,#admin-dashboard select/);
   assert.match(readFileSync(new URL('./server.mjs', import.meta.url), 'utf8'), /proctorOnline \? proctor\.violation : ''/);
+  assert.match(readFileSync(new URL('./server.mjs', import.meta.url), 'utf8'), /is_practice = 0/);
   assert.match(page, /id="proctor-viewer"/);
   assert.doesNotMatch(source, /packagePreviewUrls/);
   const contestPage = readFileSync(new URL('./public/contest.html', import.meta.url), 'utf8');
@@ -311,7 +324,7 @@ test('admin creates contest and strict student folder reaches judge queue', asyn
   assert.deepEqual(examMatches, [{ studentId: roster[0].studentId, studentName: roster[0].studentName }]);
   const query = new URLSearchParams({ studentId: roster[0].studentId, studentName: roster[0].studentName, studentToken: roster[0].token });
   const submitResponse = await fetch(`${origin}/api/contests/${id}/submissions?${query}`, {
-    method: 'PUT', body: folderSubmission(roster[0].studentId, { 'sum.cpp': 'int main(){}\n' })
+    method: 'PUT', body: folderSubmission(`${roster[0].studentId}${roster[0].studentName}`, { 'sum.cpp': 'int main(){}\n' })
   });
   const submitted = await submitResponse.json();
   assert.equal(submitResponse.status, 201, JSON.stringify(submitted));
@@ -319,13 +332,13 @@ test('admin creates contest and strict student folder reaches judge queue', asyn
 
   const invalidQuery = new URLSearchParams({ studentId: roster[1].studentId, studentName: roster[1].studentName, studentToken: roster[1].token });
   const invalidFormatResponse = await fetch(`${origin}/api/contests/${id}/submissions?${invalidQuery}`, {
-    method: 'PUT', body: folderSubmission(roster[1].studentId, { 'wrong.cpp': 'int main(){}\n' })
+    method: 'PUT', body: folderSubmission(`${roster[1].studentId}${roster[1].studentName}`, { 'wrong.cpp': 'int main(){}\n' })
   });
   assert.equal(invalidFormatResponse.status, 201);
   assert.deepEqual(await invalidFormatResponse.json(), { ok: true, status: 'uploaded' });
 
   const duplicateResponse = await fetch(`${origin}/api/contests/${id}/submissions?${query}`, {
-    method: 'PUT', body: folderSubmission(roster[0].studentId, { 'sum.cpp': 'int main(){}\n' })
+    method: 'PUT', body: folderSubmission(`${roster[0].studentId}${roster[0].studentName}`, { 'sum.cpp': 'int main(){}\n' })
   });
   assert.equal(duplicateResponse.status, 409);
   assert.match((await duplicateResponse.json()).error, /只允许提交一次/);
@@ -350,7 +363,7 @@ test('admin creates contest and strict student folder reaches judge queue', asyn
   assert.equal(archiveResponse.status, 200);
   assert.match(archiveResponse.headers.get('content-disposition'), new RegExp(roster[0].studentId));
   const downloaded = new AdmZip(Buffer.from(await archiveResponse.arrayBuffer()));
-  assert.ok(downloaded.getEntry(`${roster[0].studentId}/sum.cpp`));
+  assert.ok(downloaded.getEntry(`${roster[0].studentId}${roster[0].studentName}/sum.cpp`));
 
   const resetResponse = await fetch(`${origin}/api/admin/submissions/${latest.id}/reset-attempt`, { method: 'POST', headers: adminHeaders });
   assert.equal(resetResponse.status, 200, await resetResponse.text());
@@ -358,23 +371,23 @@ test('admin creates contest and strict student folder reaches judge queue', asyn
   latest = overview.contests.find(contest => contest.id === id).submissions.find(submission => submission.studentId === roster[0].studentId);
   assert.equal(latest.submissionAllowed, true);
   const resubmittedResponse = await fetch(`${origin}/api/contests/${id}/submissions?${query}`, {
-    method: 'PUT', body: folderSubmission(roster[0].studentId, { 'sum.cpp': 'int main(){}\n' })
+    method: 'PUT', body: folderSubmission(`${roster[0].studentId}${roster[0].studentName}`, { 'sum.cpp': 'int main(){}\n' })
   });
   const resubmitted = await resubmittedResponse.json();
   assert.equal(resubmittedResponse.status, 201, JSON.stringify(resubmitted));
   assert.deepEqual(resubmitted, { ok: true, status: 'uploaded' });
   const thirdResponse = await fetch(`${origin}/api/contests/${id}/submissions?${query}`, {
-    method: 'PUT', body: folderSubmission(roster[0].studentId, { 'sum.cpp': 'int main(){}\n' })
+    method: 'PUT', body: folderSubmission(`${roster[0].studentId}${roster[0].studentName}`, { 'sum.cpp': 'int main(){}\n' })
   });
   assert.equal(thirdResponse.status, 409);
   const secondReset = await fetch(`${origin}/api/admin/submissions/${latest.id}/reset-attempt`, { method: 'POST', headers: adminHeaders });
   assert.equal(secondReset.status, 200, await secondReset.text());
   const thirdSubmission = await fetch(`${origin}/api/contests/${id}/submissions?${query}`, {
-    method: 'PUT', body: folderSubmission(roster[0].studentId, { 'sum.cpp': 'int main(){}\n' })
+    method: 'PUT', body: folderSubmission(`${roster[0].studentId}${roster[0].studentName}`, { 'sum.cpp': 'int main(){}\n' })
   });
   assert.equal(thirdSubmission.status, 201, await thirdSubmission.text());
   const fourthResponse = await fetch(`${origin}/api/contests/${id}/submissions?${query}`, {
-    method: 'PUT', body: folderSubmission(roster[0].studentId, { 'sum.cpp': 'int main(){}\n' })
+    method: 'PUT', body: folderSubmission(`${roster[0].studentId}${roster[0].studentName}`, { 'sum.cpp': 'int main(){}\n' })
   });
   assert.equal(fourthResponse.status, 409);
   await new Promise(resolve => setTimeout(resolve, 30));
@@ -390,6 +403,13 @@ test('admin creates contest and strict student folder reaches judge queue', asyn
   assert.equal(earlyDeleteResponse.status, 409);
   const closeResponse = await fetch(`${origin}/api/admin/contests/${id}/close`, { method: 'POST', headers: adminHeaders });
   assert.equal(closeResponse.status, 200);
+  const reviewStatus = await fetch(`${origin}/api/admin/contests/${id}/ai-review/status`, { headers: adminHeaders }).then(response => response.json());
+  assert.equal(reviewStatus.students.length, 2);
+  assert.equal(reviewStatus.students.find(student => student.studentId === roster[0].studentId).status, 'idle');
+  const invalidReviewKey = await fetch(`${origin}/api/admin/contests/${id}/ai-review/${roster[0].studentId}`, {
+    method: 'POST', headers: { ...adminHeaders, 'content-type': 'application/json' }, body: JSON.stringify({ apiKey: 'short' })
+  });
+  assert.equal(invalidReviewKey.status, 400);
   const closedTimeResponse = await fetch(`${origin}/api/admin/contests/${id}`, {
     method: 'PATCH', headers: { ...adminHeaders, 'content-type': 'application/json' },
     body: JSON.stringify({ startAt: changedStart, endAt: changedEnd })
@@ -398,7 +418,7 @@ test('admin creates contest and strict student folder reaches judge queue', asyn
   const listed = await fetch(`${origin}/api/contests`).then(response => response.json());
   assert.equal(listed.find(contest => contest.id === id).state, 'closed');
   const rejectedResponse = await fetch(`${origin}/api/contests/${id}/submissions?${query}`, {
-    method: 'PUT', body: folderSubmission(roster[0].studentId, { 'sum.cpp': 'int main(){}\n' })
+    method: 'PUT', body: folderSubmission(`${roster[0].studentId}${roster[0].studentName}`, { 'sum.cpp': 'int main(){}\n' })
   });
   assert.equal(rejectedResponse.status, 403);
   assert.match((await rejectedResponse.json()).error, /管理员关闭/);
