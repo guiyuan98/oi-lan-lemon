@@ -100,6 +100,8 @@ test('async form handlers keep a stable form reference', () => {
   assert.match(source, /openProctorScreen/);
   assert.match(source, /客户端已离线/);
   assert.match(source, /showJudgeDetail/);
+  assert.match(source, /赛后补题情况/);
+  assert.match(source, /student\.practice/);
   assert.match(source, /DeepSeek 单人赛后复盘/);
   assert.match(source, /ai-review\/status/);
   assert.match(source, /generate-student-ai-review/);
@@ -417,6 +419,23 @@ test('admin creates contest and strict student folder reaches judge queue', asyn
   assert.equal(closedTimeResponse.status, 409);
   const listed = await fetch(`${origin}/api/contests`).then(response => response.json());
   assert.equal(listed.find(contest => contest.id === id).state, 'closed');
+  const practiceQuery = new URLSearchParams({ studentId: roster[0].studentId, studentToken: roster[0].token });
+  const practiceResponse = await fetch(`${origin}/api/contests/${id}/practice-submissions?${practiceQuery}`, {
+    method: 'PUT', body: folderSubmission(`${roster[0].studentId}${roster[0].studentName}`, { 'sum.cpp': 'int main(){}\n' })
+  });
+  const practiceUpload = await practiceResponse.json();
+  assert.equal(practiceResponse.status, 201, JSON.stringify(practiceUpload));
+  await new Promise(resolve => setTimeout(resolve, 30));
+  db.prepare("UPDATE submissions SET status = 'judged', score = 60, details_json = ? WHERE id = ?").run(JSON.stringify({
+    tasks: [{ title: 'sum', score: 60, cases: [{ case: 1, group: 1, result: 'AC', score: 60, time: 1, memory: 1024 }] }]
+  }), practiceUpload.submissionId);
+  const practiceOverview = await fetch(`${origin}/api/admin/overview`, { headers: adminHeaders }).then(response => response.json());
+  const practiceStudent = practiceOverview.contests.find(contest => contest.id === id).participants.find(student => student.studentId === roster[0].studentId);
+  assert.equal(practiceStudent.practice.id, practiceUpload.submissionId);
+  assert.equal(practiceStudent.practice.status, 'judged');
+  assert.equal(practiceStudent.practice.score, 60);
+  assert.deepEqual(practiceStudent.practice.taskScores, [{ title: 'sum', score: 60, formatError: '' }]);
+  assert.equal(practiceStudent.practice.details.tasks[0].cases[0].result, 'AC');
   const rejectedResponse = await fetch(`${origin}/api/contests/${id}/submissions?${query}`, {
     method: 'PUT', body: folderSubmission(`${roster[0].studentId}${roster[0].studentName}`, { 'sum.cpp': 'int main(){}\n' })
   });

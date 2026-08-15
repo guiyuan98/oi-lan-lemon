@@ -65,7 +65,7 @@ function renderContest(contest) {
         <h3>文件命名与目录示例</h3>
         <div class="guide-images">
           <figure><img src="/assets/csp-file-table.png" alt="CSP 题目文件名、输入输出文件名和源码文件名示例"><figcaption>以题面表格规定的目录、输入输出文件名和源码文件名为准。</figcaption></figure>
-          <figure><img src="/assets/folder-structure.png" alt="考号紧接姓名的文件夹、题目子文件夹和源码文件的目录结构示例"><figcaption>图中 BJ-001 仅为旧示例；实际最外层文件夹必须由考号紧接姓名，中间不加符号，例如 OI123456张三。</figcaption></figure>
+          <figure><img src="/assets/folder-structure.png?v=2" alt="考号紧接姓名的文件夹、题目子文件夹和源码文件的目录结构示例"><figcaption>最外层文件夹必须由考号紧接姓名，中间不加空格、加号或其他符号，例如 OI123456张三。</figcaption></figure>
         </div>
       </div>
     </section>

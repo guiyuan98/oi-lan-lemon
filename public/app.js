@@ -74,6 +74,13 @@ async function adminOverview() {
           return `<tr><td>${escapeHtml(student.studentName)}<small>${escapeHtml(student.studentId)}</small></td><td>${student.submissionId ? `<b>已提交 v${student.version}</b><small>${statusLabels[student.status] || student.status}</small>` : '<span class="not-submitted">未提交</span>'}</td>${contest.tasks.map(task => { const result = student.taskScores.find(item => item.title === task.title); return `<td>${result ? `<button class="task-result-button" data-submission-id="${student.submissionId}" data-task="${escapeHtml(task.title)}">${result.score}${result.formatError ? '<small>格式错误</small>' : ''}</button>` : '—'}</td>`; }).join('')}<td><strong>${student.score ?? '—'}</strong></td><td><div class="row-actions">${submissionActions}<button class="delete-student danger-button" data-contest-id="${contest.id}" data-student-id="${escapeHtml(student.studentId)}" data-name="${escapeHtml(student.studentName)}" data-submitted="${student.submissionId ? '1' : '0'}">删除学生</button></div></td></tr>`;
         }).join('')}</tbody></table>` : '<p class="empty">还没有参赛学生。</p>'}
       </div>
+      ${['ended', 'closed'].includes(contest.state) ? `<div class="submission-table practice-admin-table">
+        <div class="student-manager-head"><div><h3>赛后补题情况</h3><small>显示每名学生最近一次自主测评；补题成绩不计入正式成绩和排名。</small></div></div>
+        ${contest.participants.length ? `<table><thead><tr><th>选手</th><th>补题状态</th>${contest.tasks.map(task => `<th>${escapeHtml(task.title)}</th>`).join('')}<th>补题总分</th></tr></thead><tbody>${contest.participants.map(student => {
+          const practice = student.practice;
+          return `<tr><td>${escapeHtml(student.studentName)}<small>${escapeHtml(student.studentId)}</small></td><td>${practice ? `<b>${statusLabels[practice.status] || practice.status}</b><small>${practice.submittedAt ? formatTime(practice.submittedAt) : ''}</small>` : '<span class="not-submitted">未补题</span>'}</td>${contest.tasks.map(task => { const result = practice?.taskScores?.find(item => item.title === task.title); return `<td>${result ? `<button class="task-result-button" data-submission-id="${practice.id}" data-task="${escapeHtml(task.title)}">${result.score}${result.formatError ? '<small>格式错误</small>' : ''}</button>` : '—'}</td>`; }).join('')}<td><strong>${practice?.score ?? '—'}</strong></td></tr>`;
+        }).join('')}</tbody></table>` : '<p class="empty">还没有参赛学生。</p>'}
+      </div>` : ''}
       <div class="ai-review-panel" data-id="${contest.id}" data-title="${escapeHtml(contest.title)}">
         <div class="student-manager-head"><div><h3>DeepSeek 单人赛后复盘</h3><small>使用 1M 上下文的 deepseek-v4-pro，每次只分析一名学生并生成独立 Markdown 文档。API Key 只保留在当前页面，不会保存。</small></div></div>
         <div class="ai-review-key"><input class="ai-review-api-key" type="password" autocomplete="off" placeholder="输入 DeepSeek API Key"></div>
@@ -156,7 +163,10 @@ $('#proctor-viewer-close').addEventListener('click', () => $('#proctor-viewer').
 $('#judge-detail-close').addEventListener('click', () => $('#judge-detail-viewer').close());
 
 async function showJudgeDetail(button) {
-  const submission = adminContests.flatMap(contest => contest.submissions || []).find(item => item.id === Number(button.dataset.submissionId));
+  const submission = adminContests.flatMap(contest => [
+    ...(contest.submissions || []),
+    ...(contest.participants || []).map(student => student.practice).filter(Boolean)
+  ]).find(item => item.id === Number(button.dataset.submissionId));
   const task = submission?.details?.tasks?.find(item => item.title === button.dataset.task);
   if (!task) return toast('该题尚无测评详情', true);
   $('#judge-detail-title').textContent = `${submission.studentName} · ${task.title} · ${task.score} 分`;

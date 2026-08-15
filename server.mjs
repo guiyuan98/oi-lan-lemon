@@ -565,15 +565,21 @@ function latestSubmissions(contestId) {
 
 function adminParticipants(contestId) {
   return db.prepare(`
-    SELECT p.*, s.id submission_id, s.version, s.status, s.score, s.submitted_at, s.format_report, s.details_json
+    SELECT p.*, s.id submission_id, s.version, s.status, s.score, s.submitted_at, s.format_report, s.details_json,
+      ps.id practice_submission_id, ps.status practice_status, ps.score practice_score,
+      ps.submitted_at practice_submitted_at, ps.format_report practice_format_report, ps.details_json practice_details_json
     FROM participants p
     LEFT JOIN submissions s ON s.id = (
       SELECT id FROM submissions WHERE contest_id = p.contest_id AND student_id = p.student_id AND is_practice = 0 ORDER BY version DESC LIMIT 1
+    )
+    LEFT JOIN submissions ps ON ps.id = (
+      SELECT id FROM submissions WHERE contest_id = p.contest_id AND student_id = p.student_id AND is_practice = 1 ORDER BY id DESC LIMIT 1
     )
     WHERE p.contest_id = ?
     ORDER BY p.student_name, p.student_id
   `).all(contestId).map(row => {
     const details = JSON.parse(row.details_json || '{}');
+    const practiceDetails = JSON.parse(row.practice_details_json || '{}');
     const proctor = proctorClients.get(proctorKey(contestId, row.student_id));
     const proctorOnline = Boolean(proctor && Date.now() - proctor.lastSeen < PROCTOR_ONLINE_MS);
     return {
@@ -587,6 +593,17 @@ function adminParticipants(contestId) {
       submittedAt: row.submitted_at || null,
       formatReport: row.format_report || '',
       taskScores: (details.tasks || []).map(task => ({ title: task.title, score: task.score, formatError: task.formatError || '' })),
+      practice: row.practice_submission_id ? {
+        id: row.practice_submission_id,
+        studentId: row.student_id,
+        studentName: row.student_name,
+        status: row.practice_status,
+        score: row.practice_score,
+        submittedAt: row.practice_submitted_at,
+        formatReport: row.practice_format_report || '',
+        taskScores: (practiceDetails.tasks || []).map(task => ({ title: task.title, score: task.score, formatError: task.formatError || '' })),
+        details: practiceDetails
+      } : null,
       proctor: proctor ? {
         online: proctorOnline,
         lastSeen: new Date(proctor.lastSeen).toISOString(),
