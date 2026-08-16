@@ -16,10 +16,10 @@
 
 ## 1. 环境
 
-- Windows 10/11；
+- Windows 10/11；Linux 部署见 [`LINUX_DEPLOY.md`](LINUX_DEPLOY.md)；
 - Node.js 22.5 或更高（项目使用 Node 内置 SQLite）；
 - `g++` 在 PATH 中；
-- Qt 6.8+ 的 MinGW 开发包、CMake、Ninja，用于编译 Lemon worker。
+- Qt 6.8+ 开发包、CMake、Ninja，用于编译 Lemon worker；Windows 使用 MinGW 套件，Linux 使用系统 GCC 套件。
 
 当前 worker 明确只开放 C++（`.cpp/.cc/.cxx`），默认使用 `-std=c++14 -O2`。Python、Pascal、通信题和交互题需要分别增加编译器/运行器配置后再开放，不能只改网页允许的后缀。
 
@@ -47,6 +47,8 @@ npm start
 也可以双击 `start.bat`；停止时双击 `stop.bat`。服务器默认监听 `0.0.0.0:3000`。教师本机访问 `http://localhost:3000`；学生访问 `http://教师电脑局域网IP:3000`。第一次启动会生成管理员令牌，显示在终端并写入 `data/admin-token.txt`。
 
 Windows 防火墙若询问是否允许 Node.js 访问专用网络，选择“允许专用网络”，不要开放公用网络。
+
+Linux 推荐使用 Debian 13 或 Ubuntu 26.04 LTS。Ubuntu 24.04 软件源中的 Qt 6.4 低于本项目要求的 Qt 6.8，不能直接按教程编译 worker。完整安装、systemd 自启动和防火墙说明见 [`LINUX_DEPLOY.md`](LINUX_DEPLOY.md)。
 
 ## 4. 管理员准备比赛
 

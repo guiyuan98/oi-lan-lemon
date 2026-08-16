@@ -12,3 +12,8 @@ target_link_libraries(lemon-headless PRIVATE
     ${LEMON_QT_LIBS}
     spdlog::spdlog
 )
+
+if(UNIX)
+    target_sources(lemon-headless PRIVATE ${CMAKE_BINARY_DIR}/watcher.qrc)
+    add_dependencies(lemon-headless watcher_unix)
+endif()
