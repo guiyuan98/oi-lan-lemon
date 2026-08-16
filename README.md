@@ -25,10 +25,9 @@
 
 ## 2. 编译 Lemon worker
 
-在 Qt 安装器中安装 Qt 6.8+ 的 MinGW 64-bit 套件。假设 Qt 的 CMake 前缀为 `C:\Qt\6.9.3\mingw_64`：
+在 Qt 安装器中安装 Qt 6.8+ 的 MinGW 64-bit 套件。下载并解压本项目后，在资源管理器中打开解压得到的 `oi-lan-lemon` 文件夹，点击地址栏、输入 `powershell` 并回车。假设 Qt 的 CMake 前缀为 `C:\Qt\6.9.3\mingw_64`，在打开的 PowerShell 中执行：
 
 ```powershell
-cd C:\Users\13456\Documents\学习计划\oi-lan-lemon
 powershell -ExecutionPolicy Bypass -File .\build-worker.ps1 `
   -QtPrefix C:\Qt\6.9.3\mingw_64 `
   -CompilerDir C:\Qt\Tools\mingw1310_64\bin
@@ -38,8 +37,9 @@ powershell -ExecutionPolicy Bypass -File .\build-worker.ps1 `
 
 ## 3. 启动局域网网站
 
+继续在该项目文件夹的 PowerShell 窗口中执行：
+
 ```powershell
-cd C:\Users\13456\Documents\学习计划\oi-lan-lemon
 npm install
 npm start
 ```
